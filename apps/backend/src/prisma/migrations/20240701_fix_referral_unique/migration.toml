@@ -1,0 +1,3 @@
+# This migration fixes the referral table unique constraint
+# Run manually on existing databases: 
+#   mysql -u user -p greencash < migration.sql

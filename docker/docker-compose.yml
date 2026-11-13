@@ -1,0 +1,77 @@
+version: '3.9'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: greencash-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password_change_me}
+      MYSQL_DATABASE: greencash
+      MYSQL_USER: greencash
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-greencash_password_change_me}
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - greencash-network
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: greencash-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - greencash-network
+    command: redis-server --appendonly yes
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: greencash-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - '4000:4000'
+    env_file:
+      - ./apps/backend/.env
+    volumes:
+      - ./logs/backend:/app/logs
+      - ./uploads:/app/uploads
+    networks:
+      - greencash-network
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+    container_name: greencash-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '5173:80'
+    networks:
+      - greencash-network
+
+networks:
+  greencash-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:

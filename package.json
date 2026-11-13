@@ -1,0 +1,25 @@
+{
+  "name": "greencash",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GreenCash - Nền tảng Cashback Affiliate hiện đại cho thị trường Việt Nam",
+  "workspaces": [
+    "apps/backend",
+    "apps/frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=apps/backend",
+    "dev:frontend": "npm run dev --workspace=apps/frontend",
+    "build:backend": "npm run build --workspace=apps/backend",
+    "build:frontend": "npm run build --workspace=apps/frontend",
+    "build": "npm run build:backend && npm run build:frontend",
+    "migrate": "npm run migrate --workspace=apps/backend",
+    "seed": "npm run seed --workspace=apps/backend",
+    "lint": "npm run lint --workspace=apps/backend && npm run lint --workspace=apps/frontend",
+    "format": "npm run format --workspace=apps/backend && npm run format --workspace=apps/frontend"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "UNLICENSED"
+}

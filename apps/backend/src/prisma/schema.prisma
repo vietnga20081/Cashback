@@ -1,0 +1,730 @@
+// GreenCash Prisma Schema
+// Generator
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BANNED
+  PENDING_VERIFY
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum WalletTransactionType {
+  CASHBACK_RECEIVED
+  WITHDRAWAL
+  REFERRAL_COMMISSION
+  GIFTCODE_BONUS
+  ADJUSTMENT
+  REFUND
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  CASHBACK_PENDING
+  CASHBACK_APPROVED
+  CASHBACK_PAID
+  CANCELLED
+  REJECTED
+}
+
+enum CashbackStatus {
+  PENDING
+  CONFIRMED
+  PAID
+  CANCELLED
+  REJECTED
+}
+
+enum WithdrawStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REJECTED
+}
+
+enum WithdrawMethod {
+  BANK_TRANSFER
+  MOMO
+  ZALOPAY
+  USDT
+}
+
+enum MerchantType {
+  SHOPEE
+  TIKTOK
+  LAZADA
+  OTHER
+}
+
+enum CommissionLevel {
+  F1
+  F2
+  F3
+}
+
+enum NotificationType {
+  CASHBACK
+  WITHDRAWAL
+  REFERRAL
+  SYSTEM
+  ORDER
+  GIFTCODE
+  SECURITY
+}
+
+enum CmsPageStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum BannerPosition {
+  HERO
+  SIDEBAR
+  POPUP
+  FOOTER
+  DASHBOARD
+}
+
+enum JobStatus {
+  WAITING
+  ACTIVE
+  COMPLETED
+  FAILED
+  DELAYED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  WITHDRAW
+  APPROVE
+  REJECT
+}
+
+// ─── MODELS ───────────────────────────────────────────────────────────────────
+
+model Role {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique @db.VarChar(50)
+  displayName String       @db.VarChar(100)
+  description String?      @db.Text
+  isSystem    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique @db.VarChar(100)
+  displayName String           @db.VarChar(150)
+  group       String           @db.VarChar(50)
+  description String?          @db.Text
+  createdAt   DateTime         @default(now())
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique @db.VarChar(255)
+  phone             String?   @unique @db.VarChar(20)
+  passwordHash      String    @db.VarChar(255)
+  fullName          String    @db.VarChar(150)
+  avatar            String?   @db.VarChar(500)
+  gender            Gender?
+  dateOfBirth       DateTime?
+  status            UserStatus @default(PENDING_VERIFY)
+  emailVerifiedAt   DateTime?
+  phoneVerifiedAt   DateTime?
+  twoFactorEnabled  Boolean   @default(false)
+  twoFactorSecret   String?   @db.VarChar(100)
+  referralCode      String    @unique @db.VarChar(20)
+  referredById      String?
+  roleId            Int       @default(2) // 1=admin, 2=user
+  lastLoginAt       DateTime?
+  lastLoginIp       String?   @db.VarChar(45)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  role              Role                @relation(fields: [roleId], references: [id])
+  referredBy        User?               @relation("Referrals", fields: [referredById], references: [id])
+  referrals         User[]              @relation("Referrals")
+  sessions          Session[]
+  refreshTokens     RefreshToken[]
+  wallet            Wallet?
+  orders            Order[]
+  cashbacks         Cashback[]
+  withdraws         Withdraw[]
+  withdrawAccounts  WithdrawAccount[]
+  savedProducts     SavedProduct[]
+  notifications     Notification[]
+  giftcodeLogs      GiftcodeLog[]
+  telegramAccount   TelegramAccount?
+  zaloAccount       ZaloAccount?
+  activityLogs      ActivityLog[]
+  auditLogs         AuditLog[]
+  affiliateLinks    AffiliateLink[]
+  referralsSent     Referral[]          @relation("ReferralFrom")
+  commissions       Commission[]
+
+  @@index([email])
+  @@index([referralCode])
+  @@index([referredById])
+  @@map("users")
+}
+
+model Session {
+  id          String   @id @default(uuid())
+  userId      String
+  userAgent   String?  @db.Text
+  ipAddress   String?  @db.VarChar(45)
+  deviceInfo  String?  @db.Text
+  isActive    Boolean  @default(true)
+  lastUsedAt  DateTime @default(now())
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid())
+  userId      String
+  token       String   @unique @db.VarChar(500)
+  family      String   @db.VarChar(100) // For rotation detection
+  isRevoked   Boolean  @default(false)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model Wallet {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  availableBalance Decimal @default(0) @db.Decimal(18, 4)
+  pendingBalance  Decimal  @default(0) @db.Decimal(18, 4)
+  totalEarned     Decimal  @default(0) @db.Decimal(18, 4)
+  totalWithdrawn  Decimal  @default(0) @db.Decimal(18, 4)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions    WalletTransaction[]
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id            String                  @id @default(uuid())
+  walletId      String
+  type          WalletTransactionType
+  status        WalletTransactionStatus @default(PENDING)
+  amount        Decimal                 @db.Decimal(18, 4)
+  balanceBefore Decimal                 @db.Decimal(18, 4)
+  balanceAfter  Decimal                 @db.Decimal(18, 4)
+  description   String?                 @db.Text
+  referenceId   String?                 @db.VarChar(100) // orderId, withdrawId, etc.
+  referenceType String?                 @db.VarChar(50)
+  metadata      Json?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  wallet        Wallet                  @relation(fields: [walletId], references: [id])
+
+  @@index([walletId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("wallet_transactions")
+}
+
+model Merchant {
+  id              Int          @id @default(autoincrement())
+  type            MerchantType @unique
+  name            String       @db.VarChar(100)
+  logo            String?      @db.VarChar(500)
+  description     String?      @db.Text
+  baseCommission  Decimal      @default(0) @db.Decimal(5, 2) // %
+  userCommission  Decimal      @default(0) @db.Decimal(5, 2) // % of base that goes to user
+  isActive        Boolean      @default(true)
+  apiConfig       Json?        // Store API credentials (encrypted)
+  trackingDomain  String?      @db.VarChar(255)
+  cookieDuration  Int          @default(30) // days
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  affiliateLinks  AffiliateLink[]
+  orders          Order[]
+  cashbacks       Cashback[]
+
+  @@map("merchants")
+}
+
+model AffiliateLink {
+  id              String       @id @default(uuid())
+  userId          String
+  merchantId      Int
+  originalUrl     String       @db.Text
+  affiliateUrl    String       @db.Text
+  shortCode       String       @unique @db.VarChar(20)
+  productId       String?      @db.VarChar(200) // extracted from URL
+  productName     String?      @db.VarChar(500)
+  productImage    String?      @db.VarChar(500)
+  estimatedPrice  Decimal?     @db.Decimal(18, 2)
+  estimatedCashback Decimal?   @db.Decimal(18, 4)
+  clicks          Int          @default(0)
+  conversions     Int          @default(0)
+  isActive        Boolean      @default(true)
+  expiresAt       DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  user            User         @relation(fields: [userId], references: [id])
+  merchant        Merchant     @relation(fields: [merchantId], references: [id])
+  orders          Order[]
+
+  @@index([userId])
+  @@index([shortCode])
+  @@index([merchantId])
+  @@map("affiliate_links")
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  userId          String
+  merchantId      Int
+  affiliateLinkId String?
+  externalOrderId String?     @db.VarChar(200) // Order ID from merchant
+  status          OrderStatus @default(PENDING)
+  orderAmount     Decimal     @db.Decimal(18, 2)
+  commissionRate  Decimal     @db.Decimal(5, 2)
+  commissionAmount Decimal    @db.Decimal(18, 4)
+  cashbackAmount  Decimal     @db.Decimal(18, 4)
+  orderDate       DateTime    @default(now())
+  confirmedAt     DateTime?
+  cashbackPaidAt  DateTime?
+  metadata        Json?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user            User         @relation(fields: [userId], references: [id])
+  merchant        Merchant     @relation(fields: [merchantId], references: [id])
+  affiliateLink   AffiliateLink? @relation(fields: [affiliateLinkId], references: [id])
+  cashback        Cashback?
+
+  @@index([userId])
+  @@index([merchantId])
+  @@index([status])
+  @@index([externalOrderId])
+  @@map("orders")
+}
+
+model Cashback {
+  id          String         @id @default(uuid())
+  userId      String
+  orderId     String         @unique
+  merchantId  Int
+  amount      Decimal        @db.Decimal(18, 4)
+  status      CashbackStatus @default(PENDING)
+  approvedAt  DateTime?
+  paidAt      DateTime?
+  note        String?        @db.Text
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user        User           @relation(fields: [userId], references: [id])
+  order       Order          @relation(fields: [orderId], references: [id])
+  merchant    Merchant       @relation(fields: [merchantId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("cashbacks")
+}
+
+model WithdrawAccount {
+  id          String         @id @default(uuid())
+  userId      String
+  method      WithdrawMethod
+  accountName String         @db.VarChar(200)
+  accountNo   String         @db.VarChar(100) // bank acc, phone, wallet addr
+  bankCode    String?        @db.VarChar(20)
+  bankName    String?        @db.VarChar(100)
+  isDefault   Boolean        @default(false)
+  isVerified  Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  withdraws   Withdraw[]
+
+  @@index([userId])
+  @@map("withdraw_accounts")
+}
+
+model Withdraw {
+  id              String         @id @default(uuid())
+  userId          String
+  accountId       String
+  amount          Decimal        @db.Decimal(18, 4)
+  fee             Decimal        @default(0) @db.Decimal(18, 4)
+  netAmount       Decimal        @db.Decimal(18, 4)
+  status          WithdrawStatus @default(PENDING)
+  method          WithdrawMethod
+  note            String?        @db.Text
+  adminNote       String?        @db.Text
+  processedAt     DateTime?
+  processedById   String?
+  transactionRef  String?        @db.VarChar(200)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user            User            @relation(fields: [userId], references: [id])
+  account         WithdrawAccount @relation(fields: [accountId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("withdraws")
+}
+
+model Referral {
+  id          String   @id @default(uuid())
+  fromUserId  String
+  toUserId    String
+  level       Int      @default(1) // 1=F1, 2=F2, 3=F3
+  createdAt   DateTime @default(now())
+
+  fromUser    User     @relation("ReferralFrom", fields: [fromUserId], references: [id])
+
+  // Each user can appear once per level (unique per toUserId+level combo)
+  @@unique([toUserId, level])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@map("referrals")
+}
+
+model Commission {
+  id          String          @id @default(uuid())
+  userId      String          // Who receives the commission
+  sourceUserId String         // Whose order triggered this
+  orderId     String
+  level       CommissionLevel
+  rate        Decimal         @db.Decimal(5, 2)
+  amount      Decimal         @db.Decimal(18, 4)
+  status      CashbackStatus  @default(PENDING)
+  paidAt      DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([orderId])
+  @@map("commissions")
+}
+
+model Giftcode {
+  id          String    @id @default(uuid())
+  code        String    @unique @db.VarChar(50)
+  description String?   @db.Text
+  type        String    @db.VarChar(20) // PERCENT | FIXED | CASHBACK_BONUS
+  value       Decimal   @db.Decimal(10, 2)
+  minAmount   Decimal?  @db.Decimal(18, 2)
+  maxDiscount Decimal?  @db.Decimal(18, 4)
+  usageLimit  Int?
+  usageCount  Int       @default(0)
+  perUserLimit Int      @default(1)
+  isActive    Boolean   @default(true)
+  startsAt    DateTime  @default(now())
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  logs        GiftcodeLog[]
+
+  @@index([code])
+  @@map("giftcodes")
+}
+
+model GiftcodeLog {
+  id          String   @id @default(uuid())
+  giftcodeId  String
+  userId      String
+  benefit     Decimal  @db.Decimal(18, 4) // actual value received
+  usedAt      DateTime @default(now())
+
+  giftcode    Giftcode @relation(fields: [giftcodeId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([giftcodeId, userId])
+  @@map("giftcode_logs")
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  userId      String
+  type        NotificationType
+  title       String           @db.VarChar(200)
+  message     String           @db.Text
+  data        Json?
+  isRead      Boolean          @default(false)
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model SavedProduct {
+  id          String   @id @default(uuid())
+  userId      String
+  merchantId  Int
+  productUrl  String   @db.Text
+  productId   String?  @db.VarChar(200)
+  name        String   @db.VarChar(500)
+  image       String?  @db.VarChar(500)
+  price       Decimal? @db.Decimal(18, 2)
+  cashback    Decimal? @db.Decimal(18, 4)
+  category    String?  @db.VarChar(100)
+  note        String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("saved_products")
+}
+
+model TelegramAccount {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  telegramId  String   @unique @db.VarChar(50)
+  username    String?  @db.VarChar(100)
+  firstName   String?  @db.VarChar(100)
+  lastName    String?  @db.VarChar(100)
+  isActive    Boolean  @default(true)
+  linkedAt    DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("telegram_accounts")
+}
+
+model ZaloAccount {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  zaloId      String   @unique @db.VarChar(50)
+  displayName String?  @db.VarChar(150)
+  avatar      String?  @db.VarChar(500)
+  isActive    Boolean  @default(true)
+  linkedAt    DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("zalo_accounts")
+}
+
+model Setting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique @db.VarChar(100)
+  value       String   @db.Text
+  type        String   @db.VarChar(20) @default("string") // string | number | boolean | json
+  group       String   @db.VarChar(50) @default("general")
+  label       String?  @db.VarChar(150)
+  description String?  @db.Text
+  isPublic    Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+
+  @@index([group])
+  @@map("settings")
+}
+
+model CmsPage {
+  id          String        @id @default(uuid())
+  slug        String        @unique @db.VarChar(150)
+  title       String        @db.VarChar(255)
+  content     String        @db.LongText
+  status      CmsPageStatus @default(DRAFT)
+  metaTitle   String?       @db.VarChar(255)
+  metaDesc    String?       @db.Text
+  ogImage     String?       @db.VarChar(500)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("cms_pages")
+}
+
+model Blog {
+  id          String        @id @default(uuid())
+  slug        String        @unique @db.VarChar(200)
+  title       String        @db.VarChar(255)
+  excerpt     String?       @db.Text
+  content     String        @db.LongText
+  thumbnail   String?       @db.VarChar(500)
+  authorId    String?
+  category    String?       @db.VarChar(100)
+  tags        Json?
+  status      CmsPageStatus @default(DRAFT)
+  views       Int           @default(0)
+  metaTitle   String?       @db.VarChar(255)
+  metaDesc    String?       @db.Text
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status])
+  @@index([publishedAt])
+  @@map("blogs")
+}
+
+model Banner {
+  id          Int            @id @default(autoincrement())
+  title       String         @db.VarChar(200)
+  image       String         @db.VarChar(500)
+  link        String?        @db.VarChar(500)
+  position    BannerPosition @default(HERO)
+  sortOrder   Int            @default(0)
+  isActive    Boolean        @default(true)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([position, isActive])
+  @@map("banners")
+}
+
+model Faq {
+  id          Int      @id @default(autoincrement())
+  question    String   @db.Text
+  answer      String   @db.Text
+  category    String?  @db.VarChar(100)
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("faqs")
+}
+
+model EmailTemplate {
+  id          String   @id @default(uuid())
+  name        String   @unique @db.VarChar(100)
+  subject     String   @db.VarChar(255)
+  body        String   @db.LongText
+  variables   Json?    // describe available variables
+  isActive    Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+
+  @@map("email_templates")
+}
+
+model Job {
+  id          String    @id @default(uuid())
+  queue       String    @db.VarChar(50)
+  name        String    @db.VarChar(100)
+  data        Json
+  status      JobStatus @default(WAITING)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  error       String?   @db.Text
+  result      Json?
+  processedAt DateTime?
+  failedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([queue, status])
+  @@map("jobs")
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  userId      String
+  action      String   @db.VarChar(100)
+  description String?  @db.Text
+  ipAddress   String?  @db.VarChar(45)
+  userAgent   String?  @db.Text
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+model AuditLog {
+  id          String      @id @default(uuid())
+  userId      String?
+  action      AuditAction
+  entity      String      @db.VarChar(50)
+  entityId    String      @db.VarChar(100)
+  before      Json?
+  after       Json?
+  ipAddress   String?     @db.VarChar(45)
+  userAgent   String?     @db.Text
+  createdAt   DateTime    @default(now())
+
+  user        User?       @relation(fields: [userId], references: [id])
+
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
